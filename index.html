@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRON Light Cycles</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #0ff;
+    }
+    #game-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    #scoreboard {
+      display: flex;
+      justify-content: space-between;
+      width: 560px;
+      font-size: 18px;
+      padding: 0 10px;
+    }
+    #scoreboard .p1 { color: #0af; }
+    #scoreboard .p2 { color: #f80; }
+    canvas {
+      border: 2px solid #0ff;
+      image-rendering: pixelated;
+    }
+    #message {
+      font-size: 24px;
+      height: 30px;
+      text-align: center;
+    }
+    #controls {
+      font-size: 12px;
+      color: #088;
+      text-align: center;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="scoreboard" style="display:none">
+      <span class="p1"><span id="score1">0</span></span>
+      <span class="p2"><span id="score2">0</span></span>
+    </div>
+    <canvas id="game" width="560" height="420"></canvas>
+    <div id="message"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
