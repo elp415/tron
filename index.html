@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>TRON Light Cycles</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -14,6 +14,8 @@
       height: 100vh;
       font-family: 'Courier New', monospace;
       color: #0ff;
+      overflow: hidden;
+      touch-action: none;
     }
     #game-container {
       display: flex;
@@ -24,7 +26,7 @@
     #scoreboard {
       display: flex;
       justify-content: space-between;
-      width: 560px;
+      width: 800px;
       font-size: 18px;
       padding: 0 10px;
     }
@@ -39,21 +41,78 @@
       height: 30px;
       text-align: center;
     }
-    #controls {
-      font-size: 12px;
-      color: #088;
-      text-align: center;
-      line-height: 1.6;
+    #arena-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
     }
+    .dpad {
+      display: grid;
+      grid-template-columns: 60px 60px 60px;
+      grid-template-rows: 60px 60px 60px;
+      gap: 6px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .dpad-btn {
+      width: 60px;
+      height: 60px;
+      border: 3px solid currentColor;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      color: inherit;
+      transition: background 0.1s;
+    }
+    .dpad-btn:active, .dpad-btn.pressed {
+      background: rgba(255,255,255,0.25);
+    }
+    .dpad-btn.empty {
+      border: none;
+      background: none;
+      cursor: default;
+    }
+    .dpad-left { color: #0af; }
+    .dpad-right { color: #f80; }
   </style>
 </head>
 <body>
   <div id="game-container">
+    <div id="byline" style="font-size: 14px; color: #0ff; text-align: center; letter-spacing: 2px;">By Noah and Edwin</div>
     <div id="scoreboard" style="display:none">
       <span class="p1"><span id="score1">0</span></span>
       <span class="p2"><span id="score2">0</span></span>
     </div>
-    <canvas id="game" width="560" height="420"></canvas>
+    <div id="arena-row">
+      <div class="dpad dpad-left">
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="1" data-dir="up">&uarr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="1" data-dir="left">&larr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="1" data-dir="right">&rarr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="1" data-dir="down">&darr;</div>
+        <div class="dpad-btn empty"></div>
+      </div>
+      <canvas id="game" width="800" height="600"></canvas>
+      <div class="dpad dpad-right">
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="2" data-dir="up">&uarr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="2" data-dir="left">&larr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="2" data-dir="right">&rarr;</div>
+        <div class="dpad-btn empty"></div>
+        <div class="dpad-btn" data-player="2" data-dir="down">&darr;</div>
+        <div class="dpad-btn empty"></div>
+      </div>
+    </div>
     <div id="message"></div>
   </div>
   <script type="module" src="/src/main.ts"></script>

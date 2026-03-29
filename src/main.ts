@@ -56,9 +56,44 @@ const MAX_PELLETS = 5;
 const DIMMER_TICKS = Math.round(4000 / TICK_MS);
 const DIMMER_SPAWN_INTERVAL = Math.round(6000 / TICK_MS);
 const MAX_DIMMER_PELLETS = 3;
+const SHRINK_INTERVAL = Math.round(5000 / TICK_MS); // every 5 seconds
+const SHRINK_PX = 20; // shrink by 20 pixels on each side
+let arenaInset = 0; // current inset in pixels
+
+function arenaMinCol(): number { return Math.ceil(arenaInset / CELL); }
+function arenaMinRow(): number { return Math.ceil(arenaInset / CELL); }
+function arenaMaxCol(): number { return Math.floor((canvas.width - arenaInset) / CELL); }
+function arenaMaxRow(): number { return Math.floor((canvas.height - arenaInset) / CELL); }
+
+function shrinkArena() {
+  arenaInset += SHRINK_PX;
+  // Fill grid cells that are now walls
+  const minC = arenaMinCol();
+  const minR = arenaMinRow();
+  const maxC = arenaMaxCol();
+  const maxR = arenaMaxRow();
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (x < minC || x >= maxC || y < minR || y >= maxR) {
+        const cell = grid[y * COLS + x];
+        if (cell === GRID_PELLET || cell === GRID_DIMMER) {
+          // Remove any pellets in the wall zone
+          for (let i = pellets.length - 1; i >= 0; i--) {
+            const p = pellets[i];
+            if (p.x + PELLET_SIZE > x && p.x <= x && p.y + PELLET_SIZE > y && p.y <= y) {
+              removePellet(i);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 function initGame() {
   grid = new Uint8Array(COLS * ROWS);
+  arenaInset = 0;
 
   p1 = {
     x: Math.floor(COLS * 0.25),
@@ -101,11 +136,16 @@ const PELLET_SIZE = 4;
 
 function spawnPellet() {
   if (pellets.length >= MAX_PELLETS) return;
+  const minC = arenaMinCol() + 2;
+  const minR = arenaMinRow() + 2;
+  const maxC = arenaMaxCol() - PELLET_SIZE - 2;
+  const maxR = arenaMaxRow() - PELLET_SIZE - 2;
+  if (maxC <= minC || maxR <= minR) return;
   let x: number, y: number;
   let attempts = 0;
   do {
-    x = Math.floor(Math.random() * (COLS - PELLET_SIZE - 4)) + 2;
-    y = Math.floor(Math.random() * (ROWS - PELLET_SIZE - 4)) + 2;
+    x = Math.floor(Math.random() * (maxC - minC)) + minC;
+    y = Math.floor(Math.random() * (maxR - minR)) + minR;
     attempts++;
   } while (!isPelletAreaClear(x, y) && attempts < 200);
 
@@ -122,11 +162,16 @@ function spawnPellet() {
 function spawnDimmerPellet() {
   const dimmerCount = pellets.filter(p => p.type === "dimmer").length;
   if (dimmerCount >= MAX_DIMMER_PELLETS) return;
+  const minC = arenaMinCol() + 2;
+  const minR = arenaMinRow() + 2;
+  const maxC = arenaMaxCol() - PELLET_SIZE - 2;
+  const maxR = arenaMaxRow() - PELLET_SIZE - 2;
+  if (maxC <= minC || maxR <= minR) return;
   let x: number, y: number;
   let attempts = 0;
   do {
-    x = Math.floor(Math.random() * (COLS - PELLET_SIZE - 4)) + 2;
-    y = Math.floor(Math.random() * (ROWS - PELLET_SIZE - 4)) + 2;
+    x = Math.floor(Math.random() * (maxC - minC)) + minC;
+    y = Math.floor(Math.random() * (maxR - minR)) + minR;
     attempts++;
   } while (!isPelletAreaClear(x, y) && attempts < 200);
 
@@ -198,18 +243,40 @@ function drawGrid() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Draw arena walls (shrunk area)
+  if (arenaInset > 0) {
+    ctx.fillStyle = "#300";
+    // Top wall
+    ctx.fillRect(0, 0, canvas.width, arenaInset);
+    // Bottom wall
+    ctx.fillRect(0, canvas.height - arenaInset, canvas.width, arenaInset);
+    // Left wall
+    ctx.fillRect(0, arenaInset, arenaInset, canvas.height - arenaInset * 2);
+    // Right wall
+    ctx.fillRect(canvas.width - arenaInset, arenaInset, arenaInset, canvas.height - arenaInset * 2);
+    // Wall border glow
+    ctx.strokeStyle = "#f00";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(arenaInset, arenaInset, canvas.width - arenaInset * 2, canvas.height - arenaInset * 2);
+  }
+
+  const minC = arenaMinCol();
+  const minR = arenaMinRow();
+  const maxC = arenaMaxCol();
+  const maxR = arenaMaxRow();
+
   ctx.strokeStyle = "#111";
   ctx.lineWidth = 0.5;
-  for (let x = 0; x < COLS; x++) {
+  for (let x = minC; x < maxC; x++) {
     ctx.beginPath();
-    ctx.moveTo(x * CELL, 0);
-    ctx.lineTo(x * CELL, canvas.height);
+    ctx.moveTo(x * CELL, minR * CELL);
+    ctx.lineTo(x * CELL, maxR * CELL);
     ctx.stroke();
   }
-  for (let y = 0; y < ROWS; y++) {
+  for (let y = minR; y < maxR; y++) {
     ctx.beginPath();
-    ctx.moveTo(0, y * CELL);
-    ctx.lineTo(canvas.width, y * CELL);
+    ctx.moveTo(minC * CELL, y * CELL);
+    ctx.lineTo(maxC * CELL, y * CELL);
     ctx.stroke();
   }
 
@@ -262,99 +329,16 @@ function drawGrid() {
   }
 }
 
-// --- Graffiti victory screen ---
-
-function drawGraffitiWinScreen(winner: Player, playerNum: number) {
-  const W = canvas.width;
-  const H = canvas.height;
-
-  ctx.fillStyle = "#111";
-  ctx.fillRect(0, 0, W, H);
-
-  // Spray paint splatters
-  const colors = ["#f00", "#0f0", "#00f", "#ff0", "#f0f", "#0ff", "#f80", "#80f"];
-  for (let i = 0; i < 120; i++) {
-    const cx = Math.random() * W;
-    const cy = Math.random() * H;
-    const r = Math.random() * 40 + 5;
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    const c = colors[Math.floor(Math.random() * colors.length)];
-    grad.addColorStop(0, c);
-    grad.addColorStop(0.4, c + "88");
-    grad.addColorStop(1, "transparent");
-    ctx.fillStyle = grad;
-    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-  }
-
-  // Spray dots
-  for (let i = 0; i < 500; i++) {
-    const cx = Math.random() * W;
-    const cy = Math.random() * H;
-    const r = Math.random() * 3 + 1;
-    ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)] + "99";
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Drip lines
-  for (let i = 0; i < 30; i++) {
-    const x = Math.random() * W;
-    const y = Math.random() * H * 0.5;
-    const len = Math.random() * 80 + 30;
-    const c = colors[Math.floor(Math.random() * colors.length)];
-    ctx.strokeStyle = c + "77";
-    ctx.lineWidth = Math.random() * 3 + 1;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + (Math.random() - 0.5) * 10, y + len);
-    ctx.stroke();
-  }
-
-  const text = "YOU WIN!";
-  const name = `PLAYER ${playerNum}`;
-
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  ctx.font = "bold 72px 'Courier New', monospace";
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = "#000";
-  ctx.strokeText(text, W / 2 + 3, H / 2 - 30 + 3);
-  ctx.fillStyle = winner.color;
-  ctx.fillText(text, W / 2, H / 2 - 30);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeText(text, W / 2 - 1, H / 2 - 31);
-
-  ctx.font = "bold 36px 'Courier New', monospace";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "#000";
-  ctx.strokeText(name, W / 2 + 2, H / 2 + 30 + 2);
-  ctx.fillStyle = winner.color;
-  ctx.fillText(name, W / 2, H / 2 + 30);
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "#fff";
-  ctx.strokeText(name, W / 2 - 1, H / 2 + 29);
-
-  ctx.font = "bold 20px 'Courier New', monospace";
-  ctx.fillStyle = "#fff";
-  ctx.fillText(`${winner.score} WINS`, W / 2, H / 2 + 80);
-
-  ctx.font = "16px 'Courier New', monospace";
-  ctx.fillStyle = "#888";
-  ctx.fillText("PRESS SPACE FOR NEW MATCH", W / 2, H - 30);
-
-  ctx.restore();
-}
-
 // --- Main game tick ---
 
 function tick() {
   if (!running || gameOver) return;
 
   tickCount++;
+
+  if (tickCount % SHRINK_INTERVAL === 0) {
+    shrinkArena();
+  }
 
   if (tickCount % PELLET_SPAWN_INTERVAL === 0) {
     spawnPellet();
@@ -369,10 +353,14 @@ function tick() {
   let p2nx = p2.x + DX[p2.dir];
   let p2ny = p2.y + DY[p2.dir];
 
-  if (isInvincible(p1) && (p1nx < 0 || p1nx >= COLS || p1ny < 0 || p1ny >= ROWS)) {
+  const minC = arenaMinCol();
+  const minR = arenaMinRow();
+  const maxC = arenaMaxCol();
+  const maxR = arenaMaxRow();
+  if (isInvincible(p1) && (p1nx < minC || p1nx >= maxC || p1ny < minR || p1ny >= maxR)) {
     [p1nx, p1ny] = wrapCoord(p1nx, p1ny);
   }
-  if (isInvincible(p2) && (p2nx < 0 || p2nx >= COLS || p2ny < 0 || p2ny >= ROWS)) {
+  if (isInvincible(p2) && (p2nx < minC || p2nx >= maxC || p2ny < minR || p2ny >= maxR)) {
     [p2nx, p2ny] = wrapCoord(p2nx, p2ny);
   }
 
@@ -437,14 +425,8 @@ function awardWin(winner: Player, playerNum: number) {
   score2El.textContent = String(p2.score);
 
   if (winner.score >= WINS_NEEDED) {
-    gameOver = true;
-    running = false;
     matchOver = true;
-    if (tickInterval !== null) {
-      clearInterval(tickInterval);
-      tickInterval = null;
-    }
-    drawGraffitiWinScreen(winner, playerNum);
+    endRound(`PLAYER ${playerNum} WINS THE MATCH!`);
     return;
   }
 
@@ -452,14 +434,24 @@ function awardWin(winner: Player, playerNum: number) {
 }
 
 function wrapCoord(x: number, y: number): [number, number] {
+  const minC = arenaMinCol();
+  const minR = arenaMinRow();
+  const maxC = arenaMaxCol();
+  const maxR = arenaMaxRow();
+  const w = maxC - minC;
+  const h = maxR - minR;
   return [
-    ((x % COLS) + COLS) % COLS,
-    ((y % ROWS) + ROWS) % ROWS,
+    ((x - minC) % w + w) % w + minC,
+    ((y - minR) % h + h) % h + minR,
   ];
 }
 
 function isCollision(x: number, y: number, invincible: boolean): boolean {
-  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) {
+  const minC = arenaMinCol();
+  const minR = arenaMinRow();
+  const maxC = arenaMaxCol();
+  const maxR = arenaMaxRow();
+  if (x < minC || x >= maxC || y < minR || y >= maxR) {
     return !invincible;
   }
   const cell = grid[y * COLS + x];
@@ -543,6 +535,51 @@ function startGame() {
     tick();
   }, TICK_MS);
 }
+
+// --- D-pad touch/click controls ---
+const dirMap: Record<string, number> = { up: 0, right: 1, down: 2, left: 3 };
+
+function handleDpad(player: string, dir: string) {
+  const d = dirMap[dir];
+  if (d === undefined) return;
+  if (player === "1") {
+    if (p1.dir !== opposite(d)) p1NextDir = d;
+  } else {
+    if (p2.dir !== opposite(d)) p2NextDir = d;
+  }
+}
+
+document.querySelectorAll('.dpad-btn[data-player]').forEach((btn) => {
+  const el = btn as HTMLElement;
+  const player = el.dataset.player!;
+  const dir = el.dataset.dir!;
+
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    el.classList.add('pressed');
+    handleDpad(player, dir);
+    if (!running) startGame();
+  }, { passive: false });
+
+  el.addEventListener('touchend', () => {
+    el.classList.remove('pressed');
+  });
+
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    el.classList.add('pressed');
+    handleDpad(player, dir);
+    if (!running) startGame();
+  });
+
+  el.addEventListener('mouseup', () => {
+    el.classList.remove('pressed');
+  });
+
+  el.addEventListener('mouseleave', () => {
+    el.classList.remove('pressed');
+  });
+});
 
 // Initial draw
 initGame();
